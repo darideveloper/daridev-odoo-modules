@@ -14,31 +14,33 @@ ENV DB_PASSWORD=${DB_PASSWORD}
 ENV DB_HOST=${DB_HOST}
 ENV DB_PORT=${DB_PORT}
 
-# Other Odoo settings
-ARG SERVICE_FQDN_ODOO_8069
-ARG PROXY_MODE
-ARG WEB_BASE_URL
+# Set working directory
+WORKDIR /mnt/extra-addons
 
-ENV SERVICE_FQDN_ODOO_8069=${SERVICE_FQDN_ODOO_8069}
-ENV PROXY_MODE=${PROXY_MODE}
-ENV WEB_BASE_URL=${WEB_BASE_URL}
-
-# Switch to root to install git + curl
+# Install git (needed to clone/pull your custom modules)
 USER root
-RUN apt-get update && apt-get install -y git curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
 # Switch back to Odoo user
 USER odoo
 
-# Set working directory
-WORKDIR /mnt/extra-addons
+# Create folder for custom modules
+RUN mkdir -p /mnt/extra-addons
 
-# Auto-update custom modules from GitHub on container start
+# Expose Odoo port
+EXPOSE 8069
+
+# Start command: clone/pull modules and run Odoo
 CMD bash -c "\
 if [ -d /mnt/extra-addons/.git ]; then \
     echo 'Updating custom modules...' && git -C /mnt/extra-addons pull; \
 else \
     echo 'Cloning custom modules...' && git clone https://github.com/darideveloper/daridev-odoo-modules /mnt/extra-addons; \
 fi && \
-python odoo-bin --addons-path=/mnt/extra-addons,/usr/lib/python3/dist-packages/odoo/addons \
-    -r $DB_USER -w $DB_PASSWORD -d $DB_NAME"
+/usr/bin/odoo \
+  --addons-path=/mnt/extra-addons,/usr/lib/python3/dist-packages/odoo/addons \
+  --db_host=$DB_HOST \
+  --db_port=$DB_PORT \
+  --db_user=$DB_USER \
+  --db_password=$DB_PASSWORD \
+  --db_name=$DB_NAME"
